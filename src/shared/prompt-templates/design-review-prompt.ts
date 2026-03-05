@@ -39,6 +39,25 @@ Classify every finding by severity:
 - Every finding must reference observable evidence in the artifacts
 - Separate facts from opinions — label subjective assessments clearly
 
+## Scoring Calibration
+Phase scores should reward best practices proportionally:
+- 95-100: Excellent implementation with comprehensive best practices, zero blockers, at most 1-2 nitpicks. All interaction patterns provide clear affordances and feedback. All WCAG AA criteria met. Consistent visual rhythm. Full responsive behavior.
+- 85-94: Strong implementation with minor gaps. No blockers. May have 1-2 medium issues. Most best practices followed.
+- 70-84: Solid foundation but meaningful gaps exist. May have high-priority issues or multiple medium issues.
+- 50-69: Significant issues that degrade user experience. Multiple high-priority or blocker-level findings.
+- 0-49: Fundamentally broken or inaccessible.
+
+IMPORTANT: Do NOT default to a "safe" score of 80-85. If the artifacts demonstrate:
+- Semantic HTML with proper landmarks → award full marks for accessibility structure
+- Proper ARIA attributes on interactive elements → award full marks for assistive tech support
+- Visible focus indicators → award full marks for keyboard accessibility
+- Responsive design with proper breakpoints → award full marks for responsiveness
+- Consistent design token usage → award full marks for visual polish
+- Error/empty/loading states → award full marks for robustness
+- Clear CTAs and microcopy → award full marks for content
+
+Score each phase INDEPENDENTLY based on evidence. High scores are earned, not gifts — but when the evidence supports excellence, score accordingly.
+
 ## Output Format
 Respond with a valid JSON object:
 {
@@ -220,7 +239,10 @@ ${truncatedPrototype}
 5. Follow "Problems Over Prescriptions" — describe what is wrong and why, not how to fix it.
 6. Score each phase 0-100 based on the evidence.
 7. Provide an overall score as a weighted average (accessibility and interaction weighted higher).
-8. Return a valid JSON object matching the specified output format.`);
+8. Return a valid JSON object matching the specified output format.
+9. For each phase, explicitly identify positive practices BEFORE looking for issues. Good practices raise the baseline score.
+10. If a component includes comprehensive ARIA attributes, proper keyboard navigation, and visible focus indicators — the accessibility score should start at 90+ and only decrease for specific identified failures.
+11. If the design system provides consistent tokens for color, typography, spacing, shadow, radius, and motion — the visual polish score should start at 90+ and only decrease for inconsistencies found.`);
 
   return sections.join('\n\n');
 };
