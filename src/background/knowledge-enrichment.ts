@@ -12,6 +12,8 @@
 import { createLogger } from '@shared/logger';
 import { API_ENDPOINTS, CLAUDE_MODEL, CLAUDE_MAX_TOKENS, STORAGE_KEYS } from '@shared/constants';
 import type { AppSettings, EnrichedKnowledge, BraveSearchResult } from '@shared/types';
+import type { ExaSearchResult } from '@shared/types';
+import type { ExaMCPClient } from './exa-mcp-client';
 
 const log = createLogger('KnowledgeEnrich');
 
@@ -25,6 +27,11 @@ export class KnowledgeEnrichmentEngine {
   private braveApiKey: string = '';
   private claudeApiKey: string = '';
   private initialized: boolean = false;
+  private exaClient: ExaMCPClient | null = null;
+
+  setExaClient(client: ExaMCPClient): void {
+    this.exaClient = client;
+  }
 
   constructor() {
     this.loadApiKeys();
@@ -205,6 +212,65 @@ For each component:
         industrySpecificNotes: [],
       }));
     }
+  }
+
+  async enrichWithExaKnowledge(
+    componentType: string,
+    context: string
+  ): Promise<EnrichedKnowledge & { exaResearchSources?: ExaSearchResult[] }> {
+    log.info('Enriching with Exa knowledge', { componentType, context });
+
+    let exaResults: ExaSearchResult[] = [];
+
+    if (this.exaClient) {
+      const queries = [
+        `${componentType} UX research 2024 2025`,
+        `${componentType} conversion rate optimization study`,
+        `${componentType} accessibility patterns`,
+      ];
+
+      for (const query of queries) {
+        try {
+          const results = await this.exaClient.searchUXPatterns(query, {
+            numResults: 5,
+            includeText: true,
+            category: 'research paper',
+          });
+          exaResults.push(...results);
+          await sleep(300);
+        } catch (err) {
+          log.warn('Exa search query failed', { query, error: err });
+        }
+      }
+    }
+
+    // Merge with existing Brave-based enrichment
+    const braveEnriched = await this.enrichWithBestPractices(context, [componentType]);
+    const base = braveEnriched[0] || {
+      componentType,
+      bestPractices: [],
+      accessibilityRequirements: [],
+      performanceConsiderations: [],
+      dosAndDonts: { dos: [], donts: [] },
+      patternVariations: [],
+      industrySpecificNotes: [],
+    };
+
+    // Add Exa-sourced best practices
+    if (exaResults.length > 0) {
+      base.bestPractices.push({
+        source: 'Exa Neural Search',
+        guidelines: exaResults
+          .filter(r => r.highlights && r.highlights.length > 0)
+          .flatMap(r => r.highlights || [])
+          .slice(0, 10),
+      });
+    }
+
+    return {
+      ...base,
+      exaResearchSources: exaResults,
+    };
   }
 
   // ===== Private Methods =====

@@ -21,6 +21,8 @@ const apiFields: FieldConfig[] = [
   { key: 'hotjarSiteId', label: 'Hotjar Site ID', group: 'Hotjar', placeholder: '1234567' },
   { key: 'fullstoryApiKey', label: 'FullStory API Key', group: 'FullStory', placeholder: 'API key' },
   { key: 'fullstoryOrgId', label: 'FullStory Org ID', group: 'FullStory', placeholder: 'o-XXXXX-na1' },
+  { key: 'firecrawlApiKey', label: 'Firecrawl API Key', group: 'Firecrawl', placeholder: 'fc-...' },
+  { key: 'exaApiKey', label: 'Exa API Key', group: 'Exa', placeholder: 'exa-...' },
 ];
 
 const weightLabels: Record<keyof ScoringWeights, string> = {
@@ -107,6 +109,12 @@ export const SettingsPanel: React.FC = () => {
             break;
           case 'FullStory':
             messageType = 'TEST_FULLSTORY';
+            break;
+          case 'Firecrawl':
+            messageType = 'TEST_FIRECRAWL';
+            break;
+          case 'Exa':
+            messageType = 'TEST_EXA';
             break;
         }
 

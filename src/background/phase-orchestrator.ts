@@ -41,6 +41,9 @@ import type { ABTestEngine } from './ab-test-engine';
 import type { KnowledgeEnrichmentEngine } from './knowledge-enrichment';
 import type { FileOutputManager } from './file-output-manager';
 import type { ScoringEngine } from './scoring-engine';
+import type { FirecrawlClient } from './firecrawl-client';
+import type { ExaMCPClient } from './exa-mcp-client';
+import type { MCPOrchestrator } from './mcp-orchestrator';
 import { DiscoverPhaseExecutor } from './phases/discover-phase';
 import { DefinePhaseExecutor } from './phases/define-phase';
 import { GatePhaseExecutor } from './phases/gate-phase';
@@ -67,6 +70,9 @@ export interface PhaseOrchestratorEngines {
   knowledgeEnrichment: KnowledgeEnrichmentEngine;
   fileOutputManager: FileOutputManager;
   scoringEngine: ScoringEngine;
+  firecrawlClient?: FirecrawlClient;
+  exaClient?: ExaMCPClient;
+  mcpOrchestrator?: MCPOrchestrator;
 }
 
 export class PhaseOrchestrator {
@@ -736,7 +742,7 @@ export class PhaseOrchestrator {
     const e = this.engines;
     switch (phaseId) {
       case 'discover':
-        return new DiscoverPhaseExecutor(e.braveDeepSearch, e.multiSiteEngine, e.claudeClient, e.knowledgeEnrichment);
+        return new DiscoverPhaseExecutor(e.braveDeepSearch, e.multiSiteEngine, e.claudeClient, e.knowledgeEnrichment, e.firecrawlClient, e.exaClient, e.mcpOrchestrator);
       case 'define':
         return new DefinePhaseExecutor(e.personaGenerator, e.claudeClient);
       case 'gate':

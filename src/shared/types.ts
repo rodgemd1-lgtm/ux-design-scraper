@@ -10,6 +10,8 @@ export interface AppSettings {
   fullstoryOrgId: string;
   outputBasePath: string; // default: ~/Desktop
   scoringWeights: ScoringWeights;
+  firecrawlApiKey?: string;
+  exaApiKey?: string;
 }
 
 export interface ScoringWeights {
@@ -324,6 +326,9 @@ export interface FullScrapeResult {
   whitespace: WhitespaceAnalysis;
   interactionPatterns: InteractionPatterns;
   motionCapture: MotionCaptureData;
+  firecrawlPage?: FirecrawlPageResult | null;
+  firecrawlScreenshots?: WorkflowScreenshotSequence | null;
+  exaSimilarDesigns?: ExaSearchResult[];
 }
 
 // ===== Scoring =====
@@ -924,4 +929,77 @@ export interface ABTest {
   category: string;
   confidence: 'low' | 'medium' | 'high';
   implementation: string;
+}
+
+// ===== Firecrawl =====
+export interface FirecrawlPageResult {
+  url: string;
+  markdown: string;
+  html: string;
+  screenshot: string;
+  mobileScreenshot?: string;
+  metadata: {
+    title: string;
+    description: string;
+    ogImage?: string;
+    keywords?: string[];
+    canonicalUrl?: string;
+  };
+  structuredData: FirecrawlStructuredUXData;
+  capturedAt: string;
+}
+
+export interface FirecrawlStructuredUXData {
+  navigation: { items: string[]; depth: number; type: string };
+  ctaElements: { text: string; type: string; position: string }[];
+  formPatterns: { fields: string[]; validation: string }[];
+  socialProof: { testimonials: boolean; ratings: boolean; logos: boolean };
+  pricingMentions: string[];
+  keyMessages: string[];
+  designSystem: { primaryColors: string[]; fontFamilies: string[] };
+  contentSections: { name: string; type: string }[];
+  interactionPatterns: string[];
+}
+
+export interface FirecrawlCrawlResult {
+  baseUrl: string;
+  pages: FirecrawlPageResult[];
+  totalPages: number;
+  crawledAt: string;
+}
+
+export interface WorkflowScreenshotSequence {
+  workflowName: string;
+  steps: { url: string; screenshot: string; mobileScreenshot?: string; title: string; stepNumber: number }[];
+  totalSteps: number;
+  capturedAt: string;
+  source: 'firecrawl' | 'cdp' | 'playwright';
+}
+
+// ===== Exa MCP =====
+export interface ExaSearchResult {
+  url: string;
+  title: string;
+  publishedDate?: string;
+  author?: string;
+  text?: string;
+  highlights?: string[];
+  score: number;
+  firecrawlEnriched?: FirecrawlPageResult;
+}
+
+export interface ExaSearchOptions {
+  numResults?: number;
+  startDate?: string;
+  endDate?: string;
+  includeText?: boolean;
+  category?: 'research paper' | 'article' | 'tweet' | 'personal site' | 'ecommerce';
+}
+
+// ===== MCP =====
+export interface PlaywrightAction {
+  type: 'click' | 'scroll' | 'hover' | 'wait' | 'type';
+  selector?: string;
+  value?: string;
+  waitMs?: number;
 }

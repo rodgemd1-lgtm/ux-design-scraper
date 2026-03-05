@@ -32,12 +32,19 @@ import type {
   WhitespaceAnalysis,
   InteractionPatterns,
   MotionCaptureData,
+  FirecrawlPageResult,
+  FirecrawlStructuredUXData,
+  ExaSearchResult,
+  WorkflowScreenshotSequence,
 } from '@shared/types';
 import { ScreenshotManager } from './screenshot-manager';
 import { WaybackClient } from './wayback-client';
 import { HotjarAPIClient } from './hotjar-api-client';
 import { FullStoryAPIClient } from './fullstory-api-client';
 import { MotionCaptureManager } from './motion-capture';
+import { FirecrawlClient } from './firecrawl-client';
+import { ExaMCPClient } from './exa-mcp-client';
+import { MCPOrchestrator } from './mcp-orchestrator';
 
 const log = createLogger('ScrapeOrch');
 
@@ -81,6 +88,12 @@ const PIPELINE_STEPS: ScrapeStep[] = [
 
   // Wave 5: Fallback heatmap (only if API fails)
   { id: 'heatmap_dom', name: 'DOM Heatmap Scrape', type: 'content-script', module: 'heatmap_dom', dependsOn: ['hotjar_api', 'fullstory_api'], timeout: SCRAPE_TIMEOUTS.HEATMAP_DOM },
+
+  // Wave 6: Enhanced Data Layer (Firecrawl + Exa + MCP)
+  { id: 'firecrawl_page', name: 'Firecrawl Full-Page Extract', type: 'api' as const, module: 'firecrawl_page', dependsOn: ['inject'], timeout: SCRAPE_TIMEOUTS.API_CALL },
+  { id: 'firecrawl_screenshot', name: 'Firecrawl Full-Page Screenshot', type: 'api' as const, module: 'firecrawl_screenshot', dependsOn: ['firecrawl_page'], timeout: SCRAPE_TIMEOUTS.SCREENSHOT },
+  { id: 'exa_similar', name: 'Exa Similar Design Discovery', type: 'api' as const, module: 'exa_similar', dependsOn: ['firecrawl_page'], timeout: SCRAPE_TIMEOUTS.API_CALL },
+  { id: 'mcp_playwright', name: 'MCP Playwright Interaction States', type: 'api' as const, module: 'mcp_playwright', dependsOn: ['firecrawl_screenshot'], timeout: SCRAPE_TIMEOUTS.SCREENSHOT * 2 },
 ];
 
 export class ScrapeOrchestrator {
@@ -89,6 +102,9 @@ export class ScrapeOrchestrator {
   private hotjarClient: HotjarAPIClient;
   private fullstoryClient: FullStoryAPIClient;
   private motionCaptureManager: MotionCaptureManager;
+  private firecrawlClient: FirecrawlClient;
+  private exaClient: ExaMCPClient;
+  private mcpOrchestrator: MCPOrchestrator;
 
   private aborted: boolean = false;
   private activeTabId: number | null = null;
@@ -100,13 +116,18 @@ export class ScrapeOrchestrator {
     waybackClient: WaybackClient,
     hotjarClient: HotjarAPIClient,
     fullstoryClient: FullStoryAPIClient,
-    motionCaptureManager?: MotionCaptureManager
+    motionCaptureManager?: MotionCaptureManager,
+    firecrawlClient?: FirecrawlClient,
+    exaClient?: ExaMCPClient,
   ) {
     this.screenshotManager = screenshotManager;
     this.waybackClient = waybackClient;
     this.hotjarClient = hotjarClient;
     this.fullstoryClient = fullstoryClient;
     this.motionCaptureManager = motionCaptureManager || new MotionCaptureManager();
+    this.firecrawlClient = firecrawlClient || new FirecrawlClient();
+    this.exaClient = exaClient || new ExaMCPClient();
+    this.mcpOrchestrator = new MCPOrchestrator(this.exaClient, this.firecrawlClient);
   }
 
   async startPipeline(config: ScrapeConfig): Promise<FullScrapeResult> {
@@ -415,6 +436,44 @@ export class ScrapeOrchestrator {
           return null;
         }
 
+      case 'firecrawl_page':
+        try {
+          return await this.firecrawlClient.scrapeUrl(config.targetUrl, {
+            formats: ['markdown', 'html', 'screenshot'],
+            includeScreenshot: true,
+          });
+        } catch (err) {
+          log.warn('Firecrawl page scrape failed (may not be configured)', err);
+          return null;
+        }
+
+      case 'firecrawl_screenshot':
+        try {
+          return await this.firecrawlClient.captureWorkflowScreenshots([config.targetUrl]);
+        } catch (err) {
+          log.warn('Firecrawl screenshot failed (may not be configured)', err);
+          return null;
+        }
+
+      case 'exa_similar':
+        try {
+          return await this.exaClient.findSimilarDesigns(config.targetUrl);
+        } catch (err) {
+          log.warn('Exa similar designs search failed (may not be configured)', err);
+          return null;
+        }
+
+      case 'mcp_playwright':
+        try {
+          return await this.mcpOrchestrator.runPlaywrightCapture(config.targetUrl, [
+            { type: 'hover', selector: 'nav a' },
+            { type: 'scroll' },
+          ]);
+        } catch (err) {
+          log.warn('MCP Playwright capture failed', err);
+          return null;
+        }
+
       default:
         throw new Error(`Unknown API module: ${step.module}`);
     }
@@ -508,6 +567,9 @@ export class ScrapeOrchestrator {
       whitespace: (this.stepData.get('whitespace') as WhitespaceAnalysis) || this.emptyWhitespace(),
       interactionPatterns: (this.stepData.get('interaction-patterns') as InteractionPatterns) || this.emptyInteractionPatterns(),
       motionCapture: (this.stepData.get('motion-capture') as MotionCaptureData) || this.emptyMotionCapture(),
+      firecrawlPage: (this.stepData.get('firecrawl_page') as FirecrawlPageResult) || null,
+      firecrawlScreenshots: (this.stepData.get('firecrawl_screenshot') as WorkflowScreenshotSequence) || null,
+      exaSimilarDesigns: (this.stepData.get('exa_similar') as ExaSearchResult[]) || [],
     };
   }
 

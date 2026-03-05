@@ -1,4 +1,4 @@
-import type { ProjectContext, FullScrapeResult, GeneratedPersona, DesignCritique, ReconstructedComponent, ABTestPlan, MultiSiteResult, DesignSynthesis } from './types';
+import type { ProjectContext, FullScrapeResult, GeneratedPersona, DesignCritique, ReconstructedComponent, ABTestPlan, MultiSiteResult, DesignSynthesis, FirecrawlStructuredUXData, WorkflowScreenshotSequence, ExaSearchResult, ScreenshotData } from './types';
 
 // ===== Phase Identifiers =====
 export type WorkflowPhaseId =
@@ -98,6 +98,10 @@ export interface DiscoverArtifacts extends PhaseArtifacts {
     recommendations: string[];
   };
   inspirationAnalysis?: InspirationAnalysis;
+  firecrawlExtract?: FirecrawlStructuredUXData;
+  firecrawlScreenshots?: WorkflowScreenshotSequence;
+  exaSimilarDesigns?: ExaSearchResult[];
+  interactionStateScreenshots?: ScreenshotData[];
 }
 
 // ===== Define Phase Outputs =====

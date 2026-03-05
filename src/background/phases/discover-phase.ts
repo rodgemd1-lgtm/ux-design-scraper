@@ -15,7 +15,10 @@ import type { ClaudeAPIClient } from '../claude-api-client';
 import type { BraveDeepSearchClient } from '../brave-deep-search';
 import type { MultiSiteEngine } from '../multi-site-engine';
 import type { KnowledgeEnrichmentEngine } from '../knowledge-enrichment';
-import type { DeepSearchResult, MultiSiteResult } from '@shared/types';
+import type { DeepSearchResult, MultiSiteResult, FirecrawlStructuredUXData } from '@shared/types';
+import type { FirecrawlClient } from '../firecrawl-client';
+import type { ExaMCPClient } from '../exa-mcp-client';
+import type { MCPOrchestrator } from '../mcp-orchestrator';
 import { createLogger } from '@shared/logger';
 
 const log = createLogger('DiscoverPhase');
@@ -26,6 +29,9 @@ export class DiscoverPhaseExecutor implements PhaseExecutor {
     private multiSiteEngine: MultiSiteEngine,
     private claudeClient: ClaudeAPIClient,
     private knowledgeEnrichment: KnowledgeEnrichmentEngine,
+    private firecrawlClient?: FirecrawlClient,
+    private exaClient?: ExaMCPClient,
+    private mcpOrchestrator?: MCPOrchestrator,
   ) {}
 
   async execute(
@@ -219,6 +225,37 @@ export class DiscoverPhaseExecutor implements PhaseExecutor {
           heatmapSummary = `${heatmapData.length} heatmap datasets available covering ${[...new Set((heatmapData as Array<{ pageUrl: string }>).map(h => h.pageUrl))].join(', ')}`;
         }
 
+        // Enhanced: Firecrawl structured extraction
+        let firecrawlData: unknown = null;
+        if (this.firecrawlClient) {
+          try {
+            const urls = session.targetUrls.slice(0, 3);
+            const firecrawlResults = await Promise.allSettled(
+              urls.map(url => this.firecrawlClient!.extractStructuredUXData(url))
+            );
+            const successful = firecrawlResults
+              .filter((r): r is PromiseFulfilledResult<FirecrawlStructuredUXData> => r.status === 'fulfilled')
+              .map(r => r.value);
+            if (successful.length > 0) {
+              firecrawlData = successful;
+              log.info('Firecrawl enrichment complete', { extractedCount: successful.length });
+            }
+          } catch (err) {
+            log.warn('Firecrawl enrichment failed (non-blocking)', err);
+          }
+        }
+
+        // Enhanced: Exa semantic pattern discovery
+        let exaSimilar: unknown = null;
+        if (this.exaClient && session.targetUrls.length > 0) {
+          try {
+            exaSimilar = await this.exaClient.findSimilarDesigns(session.targetUrls[0]);
+            log.info('Exa similar designs found');
+          } catch (err) {
+            log.warn('Exa similar designs search failed (non-blocking)', err);
+          }
+        }
+
         const userPrompt = buildDiscoverUserPrompt(
           ctx,
           deepSearch || null,
@@ -230,22 +267,34 @@ export class DiscoverPhaseExecutor implements PhaseExecutor {
 
         const response = await this.claudeClient.singleCall(DISCOVER_PHASE_SYSTEM_PROMPT, userPrompt);
 
+        let synthesisResult: unknown;
         try {
-          return JSON.parse(response);
+          synthesisResult = JSON.parse(response);
         } catch {
           log.warn('Failed to parse research synthesis as JSON, extracting');
           const jsonMatch = response.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            return JSON.parse(jsonMatch[0]);
+            synthesisResult = JSON.parse(jsonMatch[0]);
+          } else {
+            synthesisResult = {
+              keyFindings: [response.slice(0, 500)],
+              competitorLandscape: [],
+              designTrendInsights: [],
+              userBehaviorPatterns: [],
+              recommendations: [],
+            };
           }
-          return {
-            keyFindings: [response.slice(0, 500)],
-            competitorLandscape: [],
-            designTrendInsights: [],
-            userBehaviorPatterns: [],
-            recommendations: [],
-          };
         }
+
+        // Store enhanced data in artifacts
+        if (firecrawlData) {
+          current.firecrawlExtract = firecrawlData as DiscoverArtifacts['firecrawlExtract'];
+        }
+        if (exaSimilar) {
+          current.exaSimilarDesigns = exaSimilar as DiscoverArtifacts['exaSimilarDesigns'];
+        }
+
+        return synthesisResult;
       }
 
       default:

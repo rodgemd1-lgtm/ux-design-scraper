@@ -14,7 +14,10 @@
     "test:all": "npm run test && npm run test:e2e"
   },
   "dependencies": {
+    "@mendable/firecrawl-js": "^4.15.2",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@supabase/supabase-js": "^2.49.0",
+    "exa-js": "^2.7.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^9.0.1",

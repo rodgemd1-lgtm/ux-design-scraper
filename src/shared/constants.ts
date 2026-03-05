@@ -7,6 +7,8 @@ export const API_ENDPOINTS = {
   WAYBACK_WEB: 'https://web.archive.org/web',
   HOTJAR_API: 'https://insights.hotjar.com/api/v2',
   FULLSTORY_API: 'https://api.fullstory.com/v2',
+  FIRECRAWL: 'https://api.firecrawl.dev/v1',
+  EXA: 'https://api.exa.ai',
 } as const;
 
 export const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
